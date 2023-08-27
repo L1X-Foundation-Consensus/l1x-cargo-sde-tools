@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+authors = ["l1x-team <info@l1x.foundation>"]
+edition = "2021"
+repository = "https://github.com/L1X-Foundation-VM/l1x-cargo-sde-tools.git"
+
+[workspace.dependencies]
+anyhow = "1.0.75"
+clap = { version = "4.4.0", features = ["derive", "env"] }
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+hex = "0.4.3"
+log = "0.4"
