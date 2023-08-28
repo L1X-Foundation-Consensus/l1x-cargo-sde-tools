@@ -17,7 +17,7 @@ impl FromStr for HexData {
 }
 
 #[derive(Debug, clap::Parser)]
-#[clap(bin_name = "cargo")]
+#[clap(bin_name = "l1x-forge")]
 pub(crate) enum Opts {
     /// Utilities to develop Wasm smart contracts.
     #[command(
