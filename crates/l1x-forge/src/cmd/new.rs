@@ -57,12 +57,12 @@ impl Default for L1XContractTemplateHub {
 
         repo.insert(
             "l1x-ft".to_string(),
-            "https://github.com/paritytech/cargo-contract.git".to_string(),
+            "https://github.com/L1X-Foundation-VM/l1x-templ-ft.git".to_string(),
         );
 
         repo.insert(
             "l1x-nft".to_string(),
-            "https://github.com/L1X-Foundation-VM/l1x-sde-sc-template-nft.git"
+            "https://github.com/L1X-Foundation-VM/l1x-templ-nft.git"
                 .to_string(),
         );
         Self { repo }
