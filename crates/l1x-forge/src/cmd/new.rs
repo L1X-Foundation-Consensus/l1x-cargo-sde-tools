@@ -70,11 +70,19 @@ impl Default for L1XContractTemplateHub {
 }
 
 impl L1XContractTemplateHub {
+    fn print_templates(&self) {
+        println!("Supported Templates ...");
+        self.repo.iter().for_each(|(key, val)| {
+            println!("{} :: {}", key, val);
+        });
+    }
+
     pub fn get_template(&self, template_name: &str) -> Result<Template> {
         self.repo
             .get(template_name)
             .map(|url| Template { url: url.clone() })
             .ok_or_else(|| {
+                self.print_templates();
                 CloneError::new(format!(
                     "Template not found: {}",
                     template_name
