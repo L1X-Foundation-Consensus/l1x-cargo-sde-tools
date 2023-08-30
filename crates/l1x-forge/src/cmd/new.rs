@@ -84,7 +84,7 @@ impl L1XContractTemplateHub {
             .ok_or_else(|| {
                 self.print_templates();
                 CloneError::new(format!(
-                    "Template not found: {}",
+                    "Template '{}' not found:",
                     template_name
                 ))
                 .into()
