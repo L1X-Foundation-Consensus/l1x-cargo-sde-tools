@@ -65,6 +65,12 @@ impl Default for L1XContractTemplateHub {
             "https://github.com/L1X-Foundation-VM/l1x-templ-nft.git"
                 .to_string(),
         );
+        repo.insert(
+            "l1x-xtalk".to_string(),
+            "https://github.com/L1X-Foundation-VM/l1x-templ-xtalk.git"
+                .to_string(),
+        );
+        
         Self { repo }
     }
 }
