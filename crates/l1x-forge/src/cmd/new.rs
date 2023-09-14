@@ -50,6 +50,12 @@ impl Default for L1XContractTemplateHub {
         let mut repo = HashMap::new();
 
         repo.insert(
+            "l1x-xtalk".to_string(),
+            "https://github.com/L1X-Foundation-VM/l1x-templ-xtalk.git"
+                .to_string(),
+        );
+
+        repo.insert(
             "l1x-cross-chain-swap".to_string(),
             "https://github.com/L1X-Foundation-VM/l1x-templ-cross-chain-swap.git"
                 .to_string(),
