@@ -25,16 +25,33 @@ pub(crate) enum Opts {
         about = "Create new project workspace from template."
     )]
     New(cmd::NewCommand),
+    /// Utility to install contract to L1X VM
+    #[command(
+        name = "vm-install-contract",
+        about = "Install the contracts to L1X VM [ ebpf | evm ]"
+    )]
+    L1xVmInstallContract(l1x_cli::L1XVmInstallContractCmd),
+    /// Utility to submit transactions to L1X VM
+    #[command(
+        name = "vm-sub-txn",
+        about = "submit the transactions to L1X VM [ ebpf | evm ]"
+    )]
+    L1XVmSubTxn(l1x_cli::L1XVmSubTxnCmd),
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     tracing_subscriber::fmt::init();
     let exec_status = match Opts::parse() {
         Opts::New(new_cmd) => new_cmd.exec(),
+        Opts::L1xVmInstallContract(install_cmd) => install_cmd.exec().await,
+        Opts::L1XVmSubTxn(sub_txn_cmd) => sub_txn_cmd.exec().await,
     };
 
     match exec_status {
-        Ok(()) => {}
+        Ok(exec_status_rval) => {
+            println!("l1x-forge status : : {:#?}", exec_status_rval);
+        }
         Err(err) => {
             eprintln!("{err:?}");
             std::process::exit(1);

@@ -1,6 +1,10 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = [
+	"crates/l1x-forge",
+	"crates/l1x-cli",
+	"crates/l1x-common"
+]
 
 [workspace.package]
 authors = ["l1x-team <info@l1x.foundation>"]
@@ -13,3 +17,22 @@ clap = { version = "4.4.0", features = ["derive", "env"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 hex = "0.4.3"
 log = "0.4"
+serde = { version = "1.0.163", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+config = { version = "0.13.1", features = ["yaml", "json"] }
+sha3 = "0.10.8"
+ethers = "2.0.8"
+hex-literal = "0.4.1"
+k256 = "0.13.1"
+secp256k1 = { version = "0.27.0", features = [ "global-context", "rand-std", "bitcoin-hashes-std"] }
+reqwest = { version = "0.11", features = ["json"] }
+libp2p = { version = "0.51.3", features = ["secp256k1"] }
+tokio = { version = "1", features = ["full", "macros", "rt-multi-thread"] }
+
+# Dependencies from L1X crates
+l1x-rpc = { version = "0.1.0", git = "https://github.com/L1X-Foundation-Consensus/l1x-rpc.git" }
+
+# Local workspace crates
+l1x-cli = { path = "./crates/l1x-cli" }
+l1x-common = { path = "./crates/l1x-common" }

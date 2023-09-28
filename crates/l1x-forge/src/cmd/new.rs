@@ -76,7 +76,7 @@ impl Default for L1XContractTemplateHub {
             "https://github.com/L1X-Foundation-VM/l1x-templ-xtalk.git"
                 .to_string(),
         );
-        
+
         Self { repo }
     }
 }
@@ -218,13 +218,13 @@ pub struct NewCommand {
 }
 
 impl NewCommand {
-    pub fn exec(&self) -> Result<()> {
+    pub fn exec(&self) -> Result<String> {
         super::new_contract_project(
             &self.name,
             self.template_name.clone(),
             self.target_dir.as_ref(),
         )?;
         println!("Created contract {}", self.name);
-        Ok(())
+        Ok(String::from("Done"))
     }
 }
