@@ -2064,7 +2064,9 @@ dependencies = [
  "log",
  "reqwest",
  "secp256k1",
+ "serde",
  "serde_json",
+ "thiserror",
  "tokio",
  "tracing-subscriber",
 ]

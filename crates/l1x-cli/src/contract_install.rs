@@ -468,6 +468,8 @@ impl L1XVmContractInstaller {
             ))
         })?;
 
+		log::info!("EVM Contract Deploy: Txn Respo {:#?}", &result);
+
         let deploy_response =
             l1x_rpc_json::parse_response::<SubmitTransactionResponse>(result)
                 .map_err(|err_code| {
@@ -602,7 +604,7 @@ pub struct L1XVmInstallContractCmd {
 }
 
 impl L1XVmInstallContractCmd {
-    pub async fn exec(&self) -> Result<String> {
+    pub async fn exec(&self) -> Result<()> {
         log::info!("L1X VM Contract Install With Args :: {:#?}!", &self);
 
         match self.vm_type {
@@ -614,7 +616,7 @@ impl L1XVmInstallContractCmd {
             }
         }
 
-        Ok(String::from("Done"))
+        Ok(())
     }
 }
 

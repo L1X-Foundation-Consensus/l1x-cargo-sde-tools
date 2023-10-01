@@ -218,13 +218,13 @@ pub struct NewCommand {
 }
 
 impl NewCommand {
-    pub fn exec(&self) -> Result<String> {
+    pub fn exec(&self) -> Result<()> {
         super::new_contract_project(
             &self.name,
             self.template_name.clone(),
             self.target_dir.as_ref(),
         )?;
         println!("Created contract {}", self.name);
-        Ok(String::from("Done"))
+        Ok(())
     }
 }

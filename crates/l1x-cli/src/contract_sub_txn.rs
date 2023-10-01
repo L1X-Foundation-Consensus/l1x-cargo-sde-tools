@@ -11,6 +11,7 @@ use l1x_rpc::{
 use anyhow::Result;
 use reqwest::{Client, RequestBuilder};
 use secp256k1::{Secp256k1, SecretKey};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{
     env, error::Error, fmt::Display, fs::File, io::Read, process::Command,
@@ -18,22 +19,27 @@ use std::{
 };
 use tokio::sync::RwLock;
 
-#[derive(Debug)]
-pub struct L1XVmSubTxnError(String);
-
-impl L1XVmSubTxnError {
-    pub fn new(message: String) -> Self {
-        L1XVmSubTxnError(message)
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum L1XVmSubTxnError {
+    #[error("Hex parse error: {0}")]
+    HexParseError(String),
+    #[error("Request Creation error: {0}")]
+    RequestCreationError(String),
+    #[error("Post JSON RPC error: {0}")]
+    PostJsonRpcError(String),
+    #[error("JSON Parse error: {0}")]
+    JsonParseError(String),
+    #[error("Invalid Nonce error: {0}")]
+    InValidNonceError(String),
+    #[error("Contract Deployment error: {0}")]
+    ContractDeploymentError(String),
 }
 
-impl Display for L1XVmSubTxnError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct L1XVmTxnResponse {
+    pub status: u8,
+    pub message: String,
 }
-
-impl Error for L1XVmSubTxnError {}
 
 #[derive(Debug)]
 struct L1XVmTxnExecutorInternal {
@@ -96,45 +102,161 @@ impl L1XVmTxnExecutor {
         L1XVmTxnExecutor { txn_cmd: txn_cmd.clone(), internal_installer }
     }
 
+    fn clean_string(address_to_clean: &str) -> String {
+        // Trim the string and remove any leading or trailing quotes.
+        let trimmed_address = address_to_clean.trim().trim_matches('"');
+
+        // Remove the "0x" prefix from the address, if it exists.
+        let clean_address =
+            trimmed_address.strip_prefix("0x").unwrap_or(trimmed_address);
+
+        // Return the clean address.
+        clean_address.to_string()
+    }
+
+    fn create_txn_function_call(
+        contract_address: &str,
+        function_payload: &str,
+    ) -> Result<l1x_common::types::Transaction, L1XVmSubTxnError> {
+        Ok(l1x_common::types::Transaction::SmartContractFunctionCall {
+            contract_instance_address: l1x_common::types::U8s::Hex(
+                contract_address.parse().map_err(|err_code| {
+                    L1XVmSubTxnError::HexParseError(format!(
+                        "Sub Txn Failed: Hex File Parse Error :: {:#?}",
+                        err_code
+                    ))
+                })?,
+            ),
+            function: l1x_common::types::U8s::Text(Default::default()),
+            arguments: l1x_common::types::U8s::Hex(
+                function_payload.parse().map_err(|err_code| {
+                    L1XVmSubTxnError::HexParseError(format!(
+                        "Sub Txn Failed: Hex File Parse Error :: {:#?}",
+                        err_code
+                    ))
+                })?,
+            ),
+        })
+    }
+
+    fn create_ronly_txn_function_call(
+        contract_address: &str,
+        function_payload: &str,
+    ) -> Result<l1x_common::types::SmartContractReadOnlyFunctionCall, L1XVmSubTxnError> {
+        Ok(l1x_common::types::SmartContractReadOnlyFunctionCall {
+            contract_instance_address: l1x_common::types::U8s::Hex(
+                contract_address.parse().map_err(|err_code| {
+                    L1XVmSubTxnError::HexParseError(format!(
+                        "Read-Only Txn Failed: Hex File Parse Error :: {:#?}",
+                        err_code
+                    ))
+                })?,
+            ),
+            function: l1x_common::types::U8s::Text(Default::default()),
+            arguments: l1x_common::types::U8s::Hex(
+                function_payload.parse().map_err(|err_code| {
+                    L1XVmSubTxnError::HexParseError(format!(
+                        "Read-Only Txn Failed: Hex File Parse Error :: {:#?}",
+                        err_code
+                    ))
+                })?,
+            ),
+        })
+    }
+
+    fn create_submit_txn_request(
+        private_key: &str,
+        fee_limit: u128,
+        nonce: u128,
+        txn_function_call: l1x_common::types::Transaction,
+    ) -> Result<SubmitTransactionRequest, L1XVmSubTxnError> {
+        l1x_common::get_submit_txn_req(
+            txn_function_call,
+            private_key,
+            fee_limit,
+            nonce + 1,
+        )
+        .map_err(|err_code| {
+            L1XVmSubTxnError::RequestCreationError(format!(
+                "Sub Txn Failed: Unable to get_submit_txn_req :: {:#?}",
+                err_code
+            ))
+        })
+    }
+
+    async fn post_submit_txn_request(
+        json_client: &RequestBuilder,
+        method: &str,
+        request_json: &serde_json::Value,
+    ) -> Result<l1x_rpc_json::JsonRpcResponse, L1XVmSubTxnError> {
+        l1x_rpc_json::post_json_rpc(
+            json_client
+                .try_clone()
+                .expect("Sub Txn Failed: Unable to clone RequestBuilder"),
+            "l1x_submitTransaction",
+            json!({ "request": request_json }),
+        )
+        .await
+        .map_err(|err_code| {
+            L1XVmSubTxnError::PostJsonRpcError(format!(
+                "Sub Txn Failed: Unable to post_json_rpc {:#?}",
+                err_code
+            ))
+        })
+    }
+
+    fn print_transaction_status(txn_response_message: &[u8]) {
+        println!(
+            "{}",
+            json!({ "l1x-forge-txn-status":  L1XVmTxnResponse{
+                status: 0,
+                message: format!("{}", hex::encode(txn_response_message)),
+            }})
+        );
+    }
+
+    async fn post_get_events_request(
+        json_client: &RequestBuilder,
+        method: &str,
+        tx_hash: &str,
+    ) -> Result<l1x_rpc_json::JsonRpcResponse, L1XVmSubTxnError> {
+        l1x_rpc_json::post_json_rpc(
+            json_client.try_clone().expect(
+                "Sub Txn Failed: Unable to clone RequestBuilder",
+            ),
+            "l1x_getEvents",
+            json!({"request": GetEventsRequest{tx_hash: tx_hash.to_string(), timestamp: 0u64}}),
+        )
+        .await
+        .map_err(|err_code| {
+            L1XVmSubTxnError::JsonParseError(format!(
+            "Sub Txn Failed: l1x_submitTransaction request failed {:#?}",
+            err_code
+            ))
+        })
+    }
+
     pub async fn l1x_vm_submit_txn(
         &self,
         contract_address: &str,
-    ) -> Result<String, L1XVmSubTxnError> {
+    ) -> Result<(), L1XVmSubTxnError> {
         let self_internal = self.internal_installer.read().await;
 
-        let clean_hex_contract_address = if contract_address.starts_with("0x") {
-            &contract_address[2..]
-        } else {
-            &contract_address
-        };
+        let clean_hex_contract_address = Self::clean_string(contract_address);
 
-        let function_payload = &self.txn_cmd.function_payload;
-        let clean_hex_function_payload = if function_payload.starts_with("0x") {
-            &function_payload[2..]
-        } else {
-            &function_payload
-        };
+        let clean_hex_function_payload =
+            Self::clean_string(&self.txn_cmd.function_payload);
 
-        let txn_function_call =
-            l1x_common::types::Transaction::SmartContractFunctionCall {
-                contract_instance_address: l1x_common::types::U8s::Hex(
-                    clean_hex_contract_address.parse().map_err(|err_code| {
-                        L1XVmSubTxnError::new(format!(
-                            "Sub Txn Failed: Hex File Parse Error :: {:#?}",
-                            err_code
-                        ))
-                    })?,
-                ),
-                function: l1x_common::types::U8s::Text(Default::default()),
-                arguments: l1x_common::types::U8s::Hex(
-                    clean_hex_function_payload.parse().map_err(|err_code| {
-                        L1XVmSubTxnError::new(format!(
-                            "Sub Txn Failed: Hex File Parse Error :: {:#?}",
-                            err_code
-                        ))
-                    })?,
-                ),
-            };
+        let txn_function_call = Self::create_txn_function_call(
+            &clean_hex_contract_address,
+            &clean_hex_function_payload,
+        )?;
+
+        log::info!(
+            "Sub Txn Req for {:#?} => {:#?}",
+            &self.txn_cmd.artifact_id,
+            &txn_function_call
+        );
 
         let nonce = l1x_rpc_json::get_nonce(
             self_internal
@@ -145,63 +267,49 @@ impl L1XVmTxnExecutor {
         )
         .await
         .map_err(|err_code| {
-            L1XVmSubTxnError::new(format!(
+            L1XVmSubTxnError::InValidNonceError(format!(
                 "Sub Txn Failed: Unable to get nounce {:#?}",
                 err_code
             ))
         })?;
 
-        log::info!(
-            "Sub Txn Req for {:#?} => {:#?}",
-            &self.txn_cmd.artifact_id,
-            &txn_function_call
-        );
-
-        let request = l1x_common::get_submit_txn_req(
-            txn_function_call,
+        let request = Self::create_submit_txn_request(
             &self_internal.private_key,
             self.txn_cmd.fee_limit,
             nonce + 1,
-        )
-        .map_err(|err_code| {
-            L1XVmSubTxnError::new(format!(
-                "Sub Txn Failed: Unable to get_submit_txn_req :: {:#?}",
-                err_code
-            ))
-        })?;
+            txn_function_call,
+        )?;
 
         let request_json =
             serde_json::to_value(&request).map_err(|err_code| {
-                L1XVmSubTxnError::new(format!(
-					"Sub Txn Failed: Can serialize transaction to JSON :: {:#?}",
-					err_code
-				))
+                L1XVmSubTxnError::JsonParseError(format!(
+                "Sub Txn Failed: Can't serialize transaction to JSON :: {:#?}",
+                err_code
+                ))
             })?;
 
-        let result = l1x_rpc_json::post_json_rpc(
-            self_internal
-                .json_client
-                .try_clone()
-                .expect("Sub Txn Failed: Unable to clone RequestBuilder"),
+        let txn_response_result = Self::post_submit_txn_request(
+            &self_internal.json_client,
             "l1x_submitTransaction",
-            json!({ "request": request_json }),
+            &request_json,
         )
-        .await
+        .await?;
+
+        log::info!(
+            "Sub Txn Resp B4 Parsing for {:#?} => txn_response_result :: {:#?}",
+            &self.txn_cmd.artifact_id,
+            txn_response_result
+        );
+
+        let txn_response = l1x_rpc_json::parse_response::<
+            SubmitTransactionResponse,
+        >(txn_response_result)
         .map_err(|err_code| {
-            L1XVmSubTxnError::new(format!(
-                "Sub Txn Failed: Unable to post_json_rpc {:#?}",
+            L1XVmSubTxnError::JsonParseError(format!(
+                "Sub Txn Failed: Unable to parse the response {:#?}",
                 err_code
             ))
         })?;
-
-        let txn_response =
-            l1x_rpc_json::parse_response::<SubmitTransactionResponse>(result)
-                .map_err(|err_code| {
-                L1XVmSubTxnError::new(format!(
-                    "Sub Txn Failed: Unable to parse the response {:#?}",
-                    err_code
-                ))
-            })?;
 
         log::info!(
             "Sub Txn Resp for {:#?} => {:#?}",
@@ -211,113 +319,48 @@ impl L1XVmTxnExecutor {
 
         tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
-        let txn_event_response = l1x_rpc_json::post_json_rpc(
-				self_internal.json_client.try_clone().expect(
-					"Sub Txn Failed: Unable to clone RequestBuilder",
-				),
-                "l1x_getEvents",
-                json!({"request": GetEventsRequest{tx_hash: txn_response.hash.clone(), timestamp: 0u64}}),
-            )
-			.await
-            .map_err(|err_code| {
-				L1XVmSubTxnError::new(format!(
-				"Sub Txn Failed: l1x_submitTransaction request failed {:#?}",
-				err_code
-				))
-			})?;
-
-        let txn_event_response = l1x_rpc_json::parse_response::<
-            GetEventsResponse,
-        >(txn_event_response)
-        .map_err(|err_code| {
-            L1XVmSubTxnError::new(format!(
-                "Sub Txn Failed: Unable to parse the response {:#?}",
-                err_code
-            ))
-        })?;
+        let txn_event_response = Self::post_get_events_request(
+            &self_internal.json_client,
+            "l1x_getEvents",
+            &txn_response.hash,
+        )
+        .await?;
 
         log::info!(
-            "Sub Txn GetEventsResponse :: {:#?} | Num Events: {:#?}",
+            "Sub Txn Event Resp B4 Parsing for {:#?} => txn_event_response :: {:#?}",
             &self.txn_cmd.artifact_id,
-            txn_event_response.events_data.len()
+            txn_event_response
         );
 
-        let event_data_iter = txn_event_response.events_data.iter().enumerate();
+        let txn_event_response_message: Vec<u8> =
+            serde_json::from_value(txn_event_response.result.unwrap()["events_data"].clone())
+                .map_err(|err_code| {
+                    L1XVmSubTxnError::JsonParseError(format!(
+                        "Sub Txn Resp Failed: Unable to parse JSON Value {:#?}",
+                        err_code
+                    ))
+                })?;
 
-        let mut txn_event_data_rval: Option<String> = None;
+		Self::print_transaction_status(&txn_event_response_message);
 
-        for (index, event_item) in event_data_iter {
-            let event_data =
-                serde_json::from_slice::<serde_json::Value>(&event_item)
-                    .map_err(|err_code| {
-                        L1XVmSubTxnError::new(format!(
-								"Sub Txn Failed: Unable to parse the response {:#?}",
-								err_code
-							))
-                    })?;
-
-            if txn_event_data_rval.is_none() {
-                let r_val = format!(
-                    "address : {:#?},  json_data: {:#?}",
-                    event_data["address"].to_string(),
-                    event_data["json data"].to_string(),
-                );
-                txn_event_data_rval = Some(r_val);
-            }
-            log::info!(
-                "Evt[{:#?}] | address :: {:#?} | json data :: {:#?}",
-                index,
-                event_data["address"],
-                event_data
-            );
-        }
-
-        if txn_event_data_rval.is_none() {
-            Ok(String::from("No Event Data"))
-        } else {
-            Ok(txn_event_data_rval.unwrap())
-        }
+        Ok(())
     }
 
     pub async fn l1x_vm_read_only_call(
         &self,
         contract_address: &str,
-    ) -> Result<String, L1XVmSubTxnError> {
+    ) -> Result<(), L1XVmSubTxnError> {
         let self_internal = self.internal_installer.read().await;
 
-        let clean_hex_contract_address = if contract_address.starts_with("0x") {
-            &contract_address[2..]
-        } else {
-            &contract_address
-        };
+        let clean_hex_contract_address = Self::clean_string(contract_address);
 
-        let function_payload = &self.txn_cmd.function_payload;
-        let clean_hex_function_payload = if function_payload.starts_with("0x") {
-            &function_payload[2..]
-        } else {
-            &function_payload
-        };
+        let clean_hex_function_payload =
+            Self::clean_string(&self.txn_cmd.function_payload);
 
-        let ronly_function_call =
-			l1x_common::types::SmartContractReadOnlyFunctionCall {
-                contract_instance_address: l1x_common::types::U8s::Hex(
-                    clean_hex_contract_address.parse().map_err(|err_code| {
-                        L1XVmSubTxnError::new(format!(
-                            "Read-Only Txn Failed: Hex File Parse Error :: {:#?}",
-                            err_code
-                        ))
-                    })?,
-                ),
-                function: l1x_common::types::U8s::Text(Default::default()),
-                arguments: l1x_common::types::U8s::Hex(
-                    clean_hex_function_payload.parse().map_err(|err_code| {
-                        L1XVmSubTxnError::new(format!(
-                            "Read-Only Txn Failed: Hex File Parse Error :: {:#?}",
-                            err_code
-                        ))
-                    })?,
-                ),
-            };
+        let ronly_function_call = Self::create_ronly_txn_function_call(
+            &clean_hex_contract_address,
+            &clean_hex_function_payload,
+        )?;
 
         log::info!(
             "Read-Only Txn Req for {:#?} => {:#?}",
@@ -326,13 +369,13 @@ impl L1XVmTxnExecutor {
         );
 
         let ronly_function_call: l1x_rpc::rpc_model::SmartContractReadOnlyCallRequest =
-				ronly_function_call.try_into()
-				        .map_err(|err_code| {
-            L1XVmSubTxnError::new(format!(
-                "Read-Only Txn Failed: Unable to create request :: {:#?}",
-                err_code
-            ))
-        })?;
+                ronly_function_call.try_into()
+                .map_err(|err_code| {
+                    L1XVmSubTxnError::RequestCreationError(format!(
+                        "Read-Only Txn Failed: Unable to create request :: {:#?}",
+                        err_code
+                    ))
+                })?;
 
         let txn_result = l1x_rpc_json::post_json_rpc(
             self_internal
@@ -344,66 +387,39 @@ impl L1XVmTxnExecutor {
         )
         .await
         .map_err(|err_code| {
-            L1XVmSubTxnError::new(format!(
+            L1XVmSubTxnError::PostJsonRpcError(format!(
                 "Read-Only Txn Failed: Unable to post_json_rpc {:#?}",
                 err_code
             ))
         })?;
 
-        let ronly_txn_rval = match txn_result.result {
+        match txn_result.result {
             Some(response_inner) => {
-                let data: SmartContractReadOnlyCallResponse = serde_json::from_value(response_inner)
-					.map_err(|err_code| {
 
-						log::error!("Read-Only Txn Failed: Unable to parse the json_value {:#?}", err_code);
+                let response_message: Vec<u8> = serde_json::from_value(
+                    response_inner["result"].clone(),
+                )
+                .map_err(|err_code| {
+                    L1XVmSubTxnError::JsonParseError(format!(
+                                "Read-Only Txn Failed: Unable to parse JSON Value {:#?}",
+                                err_code
+                            ))
+                })?;
 
-						L1XVmSubTxnError::new(format!(
-							"Read-Only Txn Failed: Unable to parse the json_value {:#?}",
-							err_code
-						))
-					})?;
-
-                if data.status == 0 {
-
-					// Attempt to convert the event to a String
-					if let Ok(result_str) = String::from_utf8(data.result.clone()) {
-						log::info!("Read-Only Txn Success UTF-8:\n{:#?}", result_str);
-					}
-
-					// Attempt to deserialize the event as a JSON value
-					if let Ok(result_str) = serde_json::from_slice::<serde_json::Value>(data.result.clone()) {
-						log::info!("Read-Only Txn Success JSON Value:\n{:#?}", result_str);
-					}
-
-					// If neither String nor JSON, print as raw bytes
-					println!("Event data as Raw Bytes:\n{:?}", hex::encode(event));
-					}
-
-
-
-					let result = String::from_utf8(data.result.clone())
-						.map_err(|err_code| {
-							log::error!("Read-Only Txn Failed: Unable to parse the response {:#?}", err_code);
-							L1XVmSubTxnError::new(format!(
-								"Read-Only Txn Failed: Unable to parse the response {:#?}",
-								err_code
-							))
-						});
-
-					log::info!("Read-Only Txn Success [UTF8]:\n{:#?}", &result);
-
-					log::info!("Read-Only Txn Success [hex encoded]:\n{:#?}", hex::encode(&data.result));
-
-					let result = String::from(hex::encode(&data.result));
-                    Some(result)
-                } else {
-                    Some(String::from("Invalid response"))
-                }
+                Self::print_transaction_status(&response_message);
             }
-            None => Some(String::from("Invalid response")),
-        };
+            None => {
+                println!(
+                    "{}",
+                    json!({ "l1x-forge-txn-status":  L1XVmTxnResponse{
+                        status: 1,
+                        message: format!("InValid Inner Response"),
+                    }})
+                );
+            }
+        }
 
-        ronly_txn_rval.ok_or(L1XVmSubTxnError(String::from("Invalid response")))
+        Ok(())
     }
 }
 
@@ -473,15 +489,16 @@ pub struct L1XVmSubTxnCmd {
 }
 
 impl L1XVmSubTxnCmd {
-    pub async fn exec(&self) -> Result<String> {
+    pub async fn exec(&self) -> Result<()> {
         log::info!("Calling Submit Transactions With Args :: {:#?}!", &self);
-        Ok(self.l1x_vm_sub_txn().await?)
+        self.l1x_vm_sub_txn().await?;
+        Ok(())
     }
 }
 
 impl L1XVmSubTxnCmd {
     // Function to deploy and initialize a contract on ebpf VM
-    async fn l1x_vm_sub_txn(&self) -> Result<String, L1XVmSubTxnError> {
+    async fn l1x_vm_sub_txn(&self) -> Result<(), L1XVmSubTxnError> {
         // Load executor settings
         let txn_executor = L1XVmTxnExecutor::new(self);
 
@@ -501,18 +518,23 @@ impl L1XVmSubTxnCmd {
         };
 
         if artifact_deploy_status.is_err() {
-            return Err(L1XVmSubTxnError::new(format!(
+            return Err(L1XVmSubTxnError::ContractDeploymentError(format!(
                 "L1X Submit TransactionFailed: Unknown Contract Address"
             )));
         } else {
             match self.call_type {
-                L1XCallType::L1xCallTypeSubTxn => Ok(txn_executor
-                    .l1x_vm_submit_txn(&artifact_deploy_status.unwrap())
-                    .await?),
-                L1XCallType::L1xCallTypeReadOnly => Ok(txn_executor
-                    .l1x_vm_read_only_call(&artifact_deploy_status.unwrap())
-                    .await?),
+                L1XCallType::L1xCallTypeSubTxn => {
+                    txn_executor
+                        .l1x_vm_submit_txn(&artifact_deploy_status.unwrap())
+                        .await?;
+                }
+                L1XCallType::L1xCallTypeReadOnly => {
+                    txn_executor
+                        .l1x_vm_read_only_call(&artifact_deploy_status.unwrap())
+                        .await?;
+                }
             }
         }
+        Ok(())
     }
 }

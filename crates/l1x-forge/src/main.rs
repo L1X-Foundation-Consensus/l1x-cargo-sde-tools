@@ -42,6 +42,7 @@ pub(crate) enum Opts {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+
     let exec_status = match Opts::parse() {
         Opts::New(new_cmd) => new_cmd.exec(),
         Opts::L1xVmInstallContract(install_cmd) => install_cmd.exec().await,
@@ -49,9 +50,7 @@ async fn main() {
     };
 
     match exec_status {
-        Ok(exec_status_rval) => {
-            println!("l1x-forge status : : {:#?}", exec_status_rval);
-        }
+        Ok(()) => {}
         Err(err) => {
             eprintln!("{err:?}");
             std::process::exit(1);

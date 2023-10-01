@@ -313,7 +313,7 @@ pub fn update_toolkit_contract_address_registry(
             // Update the YAML structure with the response data
             let contract_info = L1XVMContractInfo {
                 deploy_hash: response_hash.clone(),
-                deploy_address: format!("{:#?}", response_address.clone()),
+                deploy_address: format!("\"0x{}\"", response_address.clone()),
                 instance: BTreeMap::new(),
             };
 
@@ -331,7 +331,7 @@ pub fn update_toolkit_contract_address_registry(
                 // Update the YAML structure with the response data
                 let instance_info = L1XVMInstanceInfo {
                     inst_hash: response_hash.clone(),
-                    inst_address: format!("{:#?}", response_address.clone()),
+                    inst_address: format!("\"0x{}\"", response_address.clone()),
                 };
 
                 contract_info
@@ -353,7 +353,7 @@ pub fn update_toolkit_contract_address_registry(
             // Update the YAML structure with the response data
             let contract_info = L1XVMContractInfo {
                 deploy_hash: response_hash.to_string(),
-                deploy_address: format!("{:#?}", response_address_clean),
+                deploy_address: format!("\"0x{}\"", response_address_clean),
                 instance: BTreeMap::new(),
             };
 
@@ -373,7 +373,7 @@ pub fn update_toolkit_contract_address_registry(
     buff_writer.flush().expect("Failed to flush BufWriter");
 
     // Close the file handle to release resources
-    buff_writer.into_inner().map(|file| file.sync_all()).unwrap();
+    let _ = buff_writer.into_inner().map(|file| file.sync_all()).unwrap();
 
     Ok(())
 }
