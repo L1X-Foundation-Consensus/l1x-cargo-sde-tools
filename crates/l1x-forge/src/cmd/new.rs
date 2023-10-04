@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap, env, error::Error, ffi::OsStr, fmt::Display, fs,
+    collections::BTreeMap, env, error::Error, ffi::OsStr, fmt::Display, fs,
     path::PathBuf, process::Command, str::FromStr,
 };
 
@@ -42,38 +42,34 @@ impl FromStr for Template {
 
 // Define a struct to represent the L1X smart contract template hosted in GitHub structure
 struct L1XContractTemplateHub {
-    repo: HashMap<String, String>,
+    repo: BTreeMap<String, String>,
 }
 
 impl Default for L1XContractTemplateHub {
     fn default() -> Self {
-        let mut repo = HashMap::new();
+        let mut repo = BTreeMap::new();
 
         repo.insert(
-            "l1x-xtalk".to_string(),
-            "https://github.com/L1X-Foundation-VM/l1x-templ-xtalk.git"
+            "l1x-ft".to_string(),
+            "https://github.com/L1X-Foundation-Consensus/l1x-templ-ft.git"
+                .to_string(),
+        );
+
+        repo.insert(
+            "l1x-nft".to_string(),
+            "https://github.com/L1X-Foundation-Consensus/l1x-templ-nft.git"
+                .to_string(),
+        );
+
+        repo.insert(
+            "l1x-erc20-cc-call".to_string(),
+            "https://github.com/L1X-Foundation-Consensus/l1x-templ-erc20-cross-contract-call.git"
                 .to_string(),
         );
 
         repo.insert(
             "l1x-cross-chain-swap".to_string(),
-            "https://github.com/L1X-Foundation-VM/l1x-templ-cross-chain-swap.git"
-                .to_string(),
-        );
-
-        repo.insert(
-            "l1x-ft".to_string(),
-            "https://github.com/L1X-Foundation-VM/l1x-templ-ft.git".to_string(),
-        );
-
-        repo.insert(
-            "l1x-nft".to_string(),
-            "https://github.com/L1X-Foundation-VM/l1x-templ-nft.git"
-                .to_string(),
-        );
-        repo.insert(
-            "l1x-xtalk".to_string(),
-            "https://github.com/L1X-Foundation-VM/l1x-templ-xtalk.git"
+            "https://github.com/L1X-Foundation-Consensus/l1x-templ-cross-chain-swap.git"
                 .to_string(),
         );
 
