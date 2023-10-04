@@ -142,7 +142,10 @@ impl L1XVmTxnExecutor {
     fn create_ronly_txn_function_call(
         contract_address: &str,
         function_payload: &str,
-    ) -> Result<l1x_common::types::SmartContractReadOnlyFunctionCall, L1XVmSubTxnError> {
+    ) -> Result<
+        l1x_common::types::SmartContractReadOnlyFunctionCall,
+        L1XVmSubTxnError,
+    > {
         Ok(l1x_common::types::SmartContractReadOnlyFunctionCall {
             contract_instance_address: l1x_common::types::U8s::Hex(
                 contract_address.parse().map_err(|err_code| {
@@ -332,16 +335,17 @@ impl L1XVmTxnExecutor {
             txn_event_response
         );
 
-        let txn_event_response_message: Vec<u8> =
-            serde_json::from_value(txn_event_response.result.unwrap()["events_data"].clone())
-                .map_err(|err_code| {
-                    L1XVmSubTxnError::JsonParseError(format!(
-                        "Sub Txn Resp Failed: Unable to parse JSON Value {:#?}",
-                        err_code
-                    ))
-                })?;
+        let txn_event_response_message: Vec<u8> = serde_json::from_value(
+            txn_event_response.result.unwrap()["events_data"].clone(),
+        )
+        .map_err(|err_code| {
+            L1XVmSubTxnError::JsonParseError(format!(
+                "Sub Txn Resp Failed: Unable to parse JSON Value {:#?}",
+                err_code
+            ))
+        })?;
 
-		Self::print_transaction_status(&txn_event_response_message);
+        Self::print_transaction_status(&txn_event_response_message);
 
         Ok(())
     }
@@ -395,7 +399,6 @@ impl L1XVmTxnExecutor {
 
         match txn_result.result {
             Some(response_inner) => {
-
                 let response_message: Vec<u8> = serde_json::from_value(
                     response_inner["result"].clone(),
                 )

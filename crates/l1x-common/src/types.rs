@@ -1,4 +1,4 @@
-use crate::primitives::{Address, Balance, BlockNumber};
+use crate::primitives::{Address, Balance, BlockNumber, Salt};
 use anyhow::{anyhow, Error};
 use l1x_rpc;
 use serde::{Deserialize, Serialize};
@@ -18,7 +18,8 @@ pub enum ContractType {
 pub enum AccessType {
     PRIVATE = 0,
     PUBLIC = 1,
-    RESTICTED = 2, //Will be used in future to restrict the contract to be initiated by only specified addresses.
+    RESTICTED = 2, /* Will be used in future to restrict the contract to be initiated by only
+                    * specified addresses. */
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -63,7 +64,7 @@ impl TryFrom<U8s> for Address {
 #[serde(rename_all = "snake_case")]
 pub enum Transaction {
     NativeTokenTransfer(U8s, Balance),
-    SmartContractDeployment(AccessType, ContractType, U8s),
+    SmartContractDeployment(AccessType, ContractType, U8s, Balance, U8s),
     SmartContractInit(U8s, U8s),
     SmartContractFunctionCall {
         contract_instance_address: U8s,
@@ -99,11 +100,11 @@ impl TryFrom<Transaction>
                 l1x_rpc::rpc_model::submit_transaction_request::TransactionType::NativeTokenTransfer(
                     l1x_rpc::rpc_model::NativeTokenTransfer {
                         address: TryInto::<Vec<u8>>::try_into(address)?,
-                        amount: balance.try_into()?,
+                        amount: balance.to_string(),
                     },
                 )
             }
-            Transaction::SmartContractDeployment(access_type, contract_type, code) => {
+            Transaction::SmartContractDeployment(access_type, contract_type, code, value, salt) => {
                 let access_type = match access_type {
                     AccessType::PRIVATE => l1x_rpc::rpc_model::AccessType::Private,
                     AccessType::PUBLIC => l1x_rpc::rpc_model::AccessType::Public,
@@ -119,6 +120,8 @@ impl TryFrom<Transaction>
                         access_type: access_type.into(),
                         contract_type: contract_type.into(),
                         contract_code: code.try_into()?,
+                        value: value as u64,
+                        salt: salt.try_into()?,
                     },
                 )
             }
@@ -141,18 +144,7 @@ impl TryFrom<Transaction>
                     arguments: arguments.try_into()?,
                 },
             ),
-            Transaction::SmartContractFunctionCall {
-                contract_instance_address,
-                function,
-                arguments,
-            } => l1x_rpc::rpc_model::submit_transaction_request::TransactionType::SmartContractFunctionCall(
-                l1x_rpc::rpc_model::SmartContractFunctionCall {
-                    contract_address: TryInto::<Vec<u8>>::try_into(contract_instance_address)?,
-                    function_name: TryInto::<Vec<u8>>::try_into(function)?,
-                    arguments: arguments.try_into()?,
-                },
-            ),
-			Transaction::CreateStakingPool {
+            Transaction::CreateStakingPool {
                 contract_instance_address,
                 min_stake,
                 max_stake,
@@ -166,11 +158,11 @@ impl TryFrom<Transaction>
                 l1x_rpc::rpc_model::submit_transaction_request::TransactionType::CreateStakingPool(
                     l1x_rpc::rpc_model::CreateStakingPool {
                         contract_instance_address,
-                        min_stake: min_stake.map(|x| x.try_into().unwrap()),
-                        max_stake: max_stake.map(|x| x.try_into().unwrap()),
-                        min_pool_balance: min_pool_balance.map(|x| x.try_into().unwrap()),
-                        max_pool_balance: max_pool_balance.map(|x| x.try_into().unwrap()),
-                        staking_period: staking_period.map(|x| x.try_into().unwrap()),
+                        min_stake:  min_stake.map(|x| x.to_string()),
+                        max_stake: max_stake.map(|x| x.to_string()),
+                        min_pool_balance: min_pool_balance.map(|x| x.to_string()),
+                        max_pool_balance: max_pool_balance.map(|x| x.to_string()),
+                        staking_period: staking_period.map(|x| x.to_string()),
                     },
                 )
             }
@@ -179,14 +171,14 @@ impl TryFrom<Transaction>
                 amount,
             } => l1x_rpc::rpc_model::submit_transaction_request::TransactionType::Stake(l1x_rpc::rpc_model::Stake {
                 pool_address: TryInto::<Vec<u8>>::try_into(pool_address)?,
-                amount: amount.try_into()?,
+                amount: amount.to_string()
             }),
             Transaction::UnStake {
                 pool_address,
                 amount,
             } => l1x_rpc::rpc_model::submit_transaction_request::TransactionType::Unstake(l1x_rpc::rpc_model::UnStake {
                 pool_address: TryInto::<Vec<u8>>::try_into(pool_address)?,
-                amount: amount.try_into()?,
+                amount: amount.to_string(),
             }),
         })
     }

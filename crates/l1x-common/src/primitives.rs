@@ -19,6 +19,7 @@ pub type ContractType = i8;
 pub type AccessType = i8;
 pub type TransactionHash = [u8; 32];
 pub type EventData = Vec<u8>;
+pub type Salt = Vec<u8>;
 pub mod arithmetic {
     pub type ScalarLittle = [u8; 16];
     pub type ScalarBig = [u8; 32];

@@ -2111,7 +2111,7 @@ dependencies = [
 [[package]]
 name = "l1x-rpc"
 version = "0.1.0"
-source = "git+https://github.com/L1X-Foundation-Consensus/l1x-rpc.git#eca951cbc85ab0f0dd8b34d893d7501705b0196d"
+source = "git+https://github.com/L1X-Foundation-Consensus/l1x-rpc.git?tag=v0.1.5#3539525b8e414fe82789815c89fb87ef8e453357"
 dependencies = [
  "anyhow",
  "hex",

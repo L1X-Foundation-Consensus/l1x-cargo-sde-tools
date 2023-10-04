@@ -293,7 +293,13 @@ impl L1XVmContractInstaller {
             "smart_contract_deployment": [
                 "PRIVATE",
                 "L1XVM",
-                { "file": format!("{}/l1x-artifacts/{}", self_internal.cfg_ws_home, &self.install_cmd.artifact_id) }
+                {
+                    "file": format!("{}/l1x-artifacts/{}", self_internal.cfg_ws_home, &self.install_cmd.artifact_id)
+                },
+                0,
+                {
+                    "text": "00000000000000000000000000000000"
+                }
             ]
         });
 
@@ -416,6 +422,10 @@ impl L1XVmContractInstaller {
 					))
                 },
             )?),
+            0,
+            l1x_common::types::U8s::Text(
+                "00000000000000000000000000000000".to_string(),
+            ),
         );
 
         let nonce = l1x_rpc_json::get_nonce(
@@ -468,7 +478,7 @@ impl L1XVmContractInstaller {
             ))
         })?;
 
-		log::info!("EVM Contract Deploy: Txn Respo {:#?}", &result);
+        log::info!("EVM Contract Deploy: Txn Respo {:#?}", &result);
 
         let deploy_response =
             l1x_rpc_json::parse_response::<SubmitTransactionResponse>(result)
