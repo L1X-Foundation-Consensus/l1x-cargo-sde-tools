@@ -423,9 +423,10 @@ impl L1XVmContractInstaller {
                 },
             )?),
             0,
-            l1x_common::types::U8s::Text(
-                "00000000000000000000000000000000".to_string(),
-            ),
+            l1x_common::types::U8s::Text(format!(
+                "{:#?}",
+                self.install_cmd.salt.clone()
+            )),
         );
 
         let nonce = l1x_rpc_json::get_nonce(
@@ -495,75 +496,18 @@ impl L1XVmContractInstaller {
             deploy_response
         );
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-
-        let init_event_response = l1x_rpc_json::post_json_rpc(
-				self_internal.json_client.try_clone().expect(
-					"EVM Contract Deploy Failed: Unable to clone RequestBuilder",
-				),
-                "l1x_getEvents",
-                json!({"request": GetEventsRequest{tx_hash: deploy_response.hash.clone(), timestamp: 0u64}}),
-            )
-			.await
-            .map_err(|err_code| {
-				L1XVmContractInstallError::new(format!(
-				"EVM Contract Deploy Failed: l1x_submitTransaction request failed {:#?}",
-				err_code
-				))
-			})?;
-
-        let init_event_response = l1x_rpc_json::parse_response::<
-            GetEventsResponse,
-        >(init_event_response)
-        .map_err(|err_code| {
-            L1XVmContractInstallError::new(format!(
-				"EVM Contract Deploy Failed: Unable to parse the response {:#?}",
-				err_code
-			))
-        })?;
-
-        log::info!(
-            "EVM Contract Deploy GetEventsResponse :: {:#?} | Num Events: {:#?}",
-            &self.install_cmd.artifact_id,
-			init_event_response.events_data.len()
-        );
-
-        let mut deployed_address_from_event: Option<String> = None;
-
-        let event_data_iter =
-            init_event_response.events_data.iter().enumerate();
-
-        for (index, event_item) in event_data_iter {
-            let event_data =
-                serde_json::from_slice::<serde_json::Value>(&event_item)
-                    .map_err(|err_code| {
-                        L1XVmContractInstallError::new(format!(
-								"EVM Contract Deploy Failed: Unable to parse the response {:#?}",
-								err_code
-							))
-                    })?;
-
-            if deployed_address_from_event.is_none() {
-                deployed_address_from_event =
-                    Some(event_data["address"].to_string());
-            }
-
-            log::info!(
-                "Evt[{:#?}] | address :: {:#?} | json data :: {:#?}",
-                index,
-                event_data["address"],
-                event_data
-            );
-        }
-
         let _ = toolkit_config::update_toolkit_contract_address_registry(
             toolkit_config::L1XVMContractAddressUpdateType::L1XEVM_DEPLOY {
                 artifact_id: self.install_cmd.artifact_id.clone(),
                 response_hash: deploy_response.hash.clone(),
-                response_address: deployed_address_from_event
+                response_address: deploy_response
+                    .contract_address
+                    .clone()
                     .unwrap_or_default(),
             },
         );
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
         Ok(deploy_response)
     }
@@ -605,6 +549,9 @@ pub struct L1XVmInstallContractCmd {
 
     #[clap(long = "owner")]
     owner: String,
+
+    #[clap(long = "salt")]
+    salt: String,
 
     #[clap(long = "fee_limit", default_value_t = 100)]
     fee_limit: u128,
