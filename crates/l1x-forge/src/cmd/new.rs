@@ -73,6 +73,12 @@ impl Default for L1XContractTemplateHub {
                 .to_string(),
         );
 
+        repo.insert(
+            "l1x-balancer-v2".to_string(),
+            "https://github.com/L1X-Foundation-Consensus/l1x-templ-balancer-pool.git"
+                .to_string(),
+        );
+
         Self { repo }
     }
 }
